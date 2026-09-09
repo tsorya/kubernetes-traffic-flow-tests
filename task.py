@@ -488,9 +488,36 @@ class Task(ABC):
             + int(needs_primary_udn_vf)
         )
 
+    def _get_pod_runtime_class_name(self) -> Optional[str]:
+        if self.pod_type not in (PodType.NORMAL, PodType.SECONDARY, PodType.SRIOV):
+            return None
+        return self.ts.cfg_descr.get_tft().effective_runtime_class_name
+
+    @staticmethod
+    def _pod_runtime_class_matches(
+        pod_data: Mapping[str, Any], expected_runtime_class_name: Optional[str]
+    ) -> bool:
+        spec = pod_data.get("spec")
+        actual_runtime_class_name = (
+            spec.get("runtimeClassName") if isinstance(spec, dict) else None
+        )
+        return actual_runtime_class_name == expected_runtime_class_name
+
     def get_template_args(self) -> dict[str, str | list[str] | bool]:
         resource_name = self.get_resource_name()
         conn = self.ts.connection
+        configured_runtime_class_name = (
+            self.ts.cfg_descr.get_tft().effective_runtime_class_name
+        )
+        runtime_class_name = self._get_pod_runtime_class_name()
+        if (
+            configured_runtime_class_name is not None
+            and self.pod_type == PodType.HOSTBACKED
+        ):
+            logger.warning(
+                f"Pod {self.pod_name!r} uses hostNetwork and will use the default runtime "
+                f"instead of RuntimeClass {configured_runtime_class_name!r}"
+            )
         pod_secondary_network_nads = self._get_pod_secondary_network_nads()
         has_resources = any(
             v is not None
@@ -510,6 +537,8 @@ class Task(ABC):
             "label_tft_tests": _j(f"{self.index}"),
             "node_name": _j(self.node_name),
             "pod_name": _j(self.pod_name),
+            "has_runtime_class_name": runtime_class_name is not None,
+            "runtime_class_name": _j(runtime_class_name or ""),
             "privileged_pod": _j(self._get_template_args_privileged_pod()),
             "capabilities_pod": _j(self._get_template_args_capabilities_pod()),
             "port": self._get_template_args_port(),
@@ -1088,6 +1117,24 @@ class Task(ABC):
     def setup_pod(self) -> None:
         # Check if pod already exists
         v = self.run_oc_get(f"pod/{self.pod_name}", may_fail=True)
+        if (
+            isinstance(v, dict)
+            and self.pod_type is not None
+            and not self._pod_runtime_class_matches(
+                v, self._get_pod_runtime_class_name()
+            )
+        ):
+            logger.info(
+                f"Replacing Pod {self.pod_name!r} because its RuntimeClass does not "
+                "match the current configuration."
+            )
+            r = self.run_oc(
+                f"delete pod/{self.pod_name} --wait=true",
+                may_fail=True,
+            )
+            if not r.success:
+                raise RuntimeError(f"Failed to replace Pod {self.pod_name}: {r.err}")
+            v = None
         if v is None:
             logger.info(f"Creating Pod {self.pod_name}.")
             r = self.run_oc(f"apply -f {self.out_file_yaml}", may_fail=True)

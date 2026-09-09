@@ -27,6 +27,7 @@ ENV_TFT_RDMA_TEST_IMAGE = "TFT_RDMA_TEST_IMAGE"
 ENV_TFT_IMAGE_PULL_POLICY = "TFT_IMAGE_PULL_POLICY"
 
 ENV_TFT_PRIVILEGED_POD = "TFT_PRIVILEGED_POD"
+ENV_TFT_RUNTIME_CLASS_NAME = "TFT_RUNTIME_CLASS_NAME"
 
 ENV_TFT_TEST_IMAGE_DEFAULT = (
     "ghcr.io/ovn-kubernetes/kubernetes-traffic-flow-tests:latest"
@@ -200,6 +201,30 @@ def get_tft_privileged_pod() -> Optional[bool]:
     value = common.str_to_bool(d, on_default=None)
     logger.info(
         f"env: {ENV_TFT_PRIVILEGED_POD}={common.bool_to_str(value) if value is not None else ''}"
+    )
+    return value
+
+
+def validate_runtime_class_name(value: str) -> bool:
+    """Return whether value is a valid Kubernetes DNS subdomain name."""
+    return (
+        common.validate_dns_name(value)
+        and value == value.lower()
+        and not value.endswith(".")
+    )
+
+
+@functools.cache
+def get_tft_runtime_class_name() -> Optional[str]:
+    value = get_environ(ENV_TFT_RUNTIME_CLASS_NAME)
+    if value == "":
+        value = None
+    if value is not None and not validate_runtime_class_name(value):
+        raise ValueError(
+            f"env: invalid Kubernetes RuntimeClass name in {ENV_TFT_RUNTIME_CLASS_NAME}={value!r}"
+        )
+    logger.info(
+        f"env: {ENV_TFT_RUNTIME_CLASS_NAME}={shlex.quote(value) if value is not None else ''}"
     )
     return value
 

@@ -337,6 +337,27 @@ def test_get_tft_external_server(monkeypatch: pytest.MonkeyPatch) -> None:
     tftbase.get_tft_external_server.cache_clear()
 
 
+def test_get_tft_runtime_class_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    tftbase.get_tft_runtime_class_name.cache_clear()
+    monkeypatch.delenv(tftbase.ENV_TFT_RUNTIME_CLASS_NAME, raising=False)
+    assert tftbase.get_tft_runtime_class_name() is None
+
+    tftbase.get_tft_runtime_class_name.cache_clear()
+    monkeypatch.setenv(tftbase.ENV_TFT_RUNTIME_CLASS_NAME, "")
+    assert tftbase.get_tft_runtime_class_name() is None
+
+    tftbase.get_tft_runtime_class_name.cache_clear()
+    monkeypatch.setenv(tftbase.ENV_TFT_RUNTIME_CLASS_NAME, "kata-qemu.v1")
+    assert tftbase.get_tft_runtime_class_name() == "kata-qemu.v1"
+
+    tftbase.get_tft_runtime_class_name.cache_clear()
+    monkeypatch.setenv(tftbase.ENV_TFT_RUNTIME_CLASS_NAME, "Kata")
+    with pytest.raises(ValueError, match="invalid Kubernetes RuntimeClass name"):
+        tftbase.get_tft_runtime_class_name()
+
+    tftbase.get_tft_runtime_class_name.cache_clear()
+
+
 def test_str_sanitize() -> None:
     assert tftbase.str_sanitize("") == ""
     assert tftbase.str_sanitize("hello!wo_rld@12.3") == "hello-z21-wo-z5f-rld-z40-12-03"
