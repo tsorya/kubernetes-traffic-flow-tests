@@ -60,11 +60,13 @@ tft:
             sriov: "(13)"
             default_network: "(14)"
             secondary_network_nad: "(15)"
+            runtime_class_name: "(15a)"
         client:
           - name: "(16)"
             sriov: "(17)"
             default_network: "(18)"
             secondary_network_nad: "(19)"
+            runtime_class_name: "(19a)"
         plugins:
           - name: (20)
             test_cases: (21)
@@ -239,8 +241,9 @@ dpu_node_host_label: (44)
 
 Set `runtime_class_name` on a test to run its normal, secondary-network, and SR-IOV traffic
 pods with that RuntimeClass, or set it on an individual `server` / `client` node to override
-the test-level value. Name each endpoint as a node that can actually run that RuntimeClass;
-TFT does not remap host workers to DPU nodes.
+the test-level value. For endpoints that run eligible traffic pods with a RuntimeClass, name
+a node that can actually schedule that RuntimeClass; host-network endpoints use the cluster
+default runtime and do not need to match it. TFT does not remap host workers to DPU nodes.
 
 ```yaml
 tft:
@@ -258,8 +261,12 @@ tft:
           - name: "worker-2"
 ```
 
-On DPF, host-network tests use host workers and Kata/coldplug pods must land on `worker-dpu`
-nodes. Put the DPU node name (and RuntimeClass) on the endpoint that runs a Kata pod:
+On clusters with DPUs, host-network tests use host workers and Kata/coldplug pods must land
+on `worker-dpu` nodes. Put the DPU node name (and RuntimeClass) on the endpoint that runs a
+Kata pod. Traffic pods are still scheduled on the tenant cluster using these node names; DPU
+mode continues to use separate `kubeconfig` and `kubeconfig_infra` files as in
+[DPU Mode](#dpu-mode). This helps when only one DPU node supports Kata and different-node cases
+cannot use a single test-wide RuntimeClass on every endpoint:
 
 ```yaml
 tft:
@@ -311,7 +318,7 @@ To troubleshoot scheduling, compare the RuntimeClass selector with the labels on
 nodes:
 
 ```bash
-oc get runtimeclass kata-coldplug -o yaml
+oc get runtimeclass kata -o yaml
 oc get nodes --show-labels
 ```
 

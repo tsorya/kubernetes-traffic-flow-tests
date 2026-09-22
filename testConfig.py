@@ -1323,6 +1323,7 @@ class TestConfig:
             self.validate_node_available(node_name, role)
 
     def _validate_runtime_classes(self) -> None:
+        """Verify every configured RuntimeClass exists on the tenant cluster."""
         runtime_class_names: set[str] = set()
         for tft in self.config.tft:
             if tft.runtime_class_name is not None:

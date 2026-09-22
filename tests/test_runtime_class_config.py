@@ -7,9 +7,20 @@ import yaml
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+import task  # noqa: E402
 import testConfig  # noqa: E402
+from tftbase import PodType  # noqa: E402
+from tftbase import TaskRole  # noqa: E402
 
 TEST_KUBECONFIGS = ("/root/kubeconfig.x1", None)
+
+
+class _RuntimeClassProbe(task.Task):
+    def cmd_line_args(self, *, for_template: bool = False) -> list[str]:
+        return []
+
+    def _create_setup_operation_get_cancel_action_cmd(self) -> str:
+        return ""
 
 
 def _parse_config(config: str) -> testConfig.TestConfig:
@@ -111,6 +122,31 @@ tft:
         kubeconfigs=TEST_KUBECONFIGS,
     )
     assert reparsed.config == tc.config
+
+    connection = tc.config.tft[0].connections[0]
+    ts = mock.Mock()
+    ts.cfg_descr = mock.Mock()
+    ts.cfg_descr.get_tft.return_value = tc.config.tft[0]
+    ts.node_server = connection.server[0]
+    ts.node_client = connection.client[0]
+
+    server = _RuntimeClassProbe(
+        ts=ts,
+        index=0,
+        tenant=True,
+        task_role=TaskRole.SERVER,
+    )
+    server.pod_type = PodType.NORMAL
+    client = _RuntimeClassProbe(
+        ts=ts,
+        index=0,
+        tenant=True,
+        task_role=TaskRole.CLIENT,
+    )
+    client.pod_type = PodType.NORMAL
+
+    assert server._get_pod_runtime_class_name() == "kata"
+    assert client._get_pod_runtime_class_name() == "kata-coldplug"
 
 
 def test_validate_runtime_classes_includes_node_override() -> None:

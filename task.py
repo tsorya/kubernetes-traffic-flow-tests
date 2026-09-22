@@ -499,6 +499,7 @@ class Task(ABC):
         )
 
     def _get_pod_runtime_class_name(self) -> Optional[str]:
+        """Return the RuntimeClass for eligible traffic pods on this task."""
         if self.pod_type not in (PodType.NORMAL, PodType.SECONDARY, PodType.SRIOV):
             return None
         if self.node.runtime_class_name is not None:
